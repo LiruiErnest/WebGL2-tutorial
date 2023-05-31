@@ -30,7 +30,7 @@ const chapters = {
         },
         {
             Title: "Color-interleaved square",
-            Intro: "set an interleaved position/color into a single VBO; and then assign the positions/colors to two different attribute arrays.",
+            Intro: "Set an interleaved position/color into a single VBO; and then assign the positions/colors to two different attribute arrays.",
             ThumbnailLink: "./public/images/thumbnails/5-color-interleaved.png",
             DemoLink: "./ch05-color-interleaved.html",
             CodeLink: "",
@@ -44,21 +44,21 @@ const chapters = {
         },
         {
             Title: "Simple square using VAO (Vertex array object)",
-            Intro: "",
+            Intro: "This program demonstrates how to use Vertex Array Objects (VAOs) in WebGL 2, thereby optimizing the code structure and accelerating program rendering.",
             ThumbnailLink: "./public/images/thumbnails/2-simple-square.png",
             DemoLink: "./ch07-simple-square-VAO.html",
             CodeLink: "",
         },
         {
             Title: "Simple square using IBO (Index buffer object)",
-            Intro: "show you how to draw triangles using an element array VBO to index triangle vertices.",
+            Intro: "Show you how to draw triangles using an element array VBO to index triangle vertices.",
             ThumbnailLink: "./public/images/thumbnails/8-simple-square-IBO.png",
             DemoLink: "./ch08-simple-square-IBO.html",
             CodeLink: "",
         },
         {
             Title: "Interactive square",
-            Intro: "rendering two triangles and allow using 'w', 's', 'a', 'd' to move the triangles",
+            Intro: "Rendering a square and allow using 'w', 's', 'a', 'd' to move the square",
             ThumbnailLink: "./public/images/thumbnails/9-interactive-square.png",
             DemoLink: "./ch09-interactive-square.html",
             CodeLink: "",
@@ -67,14 +67,14 @@ const chapters = {
     transformationChapters: [
         {
             Title: "Viewport",
-            Intro: "display the same 2 triangles over 9 different viewports; allow change background color",
+            Intro: "Display the same 2 triangles over 9 different viewports; allow change background color",
             ThumbnailLink: "./public/images/thumbnails/10-viewport.png",
             DemoLink: "./ch10-viewport.html",
             CodeLink: "",
         },
         {
             Title: "Simple transform",
-            Intro: "",
+            Intro: "Simple transformation of 2D triangles using glm (left mouse click and drag to rotate)",
             ThumbnailLink: "./public/images/thumbnails/11-simple-transform-rotation.png",
             DemoLink: "./ch11-simple-transform-rotation.html",
             CodeLink: "",
@@ -132,14 +132,14 @@ const chapters = {
     lightsChapters: [
         {
             Title: "Phong lighting with Goraud-shading",
-            Intro: "",
+            Intro: "Demonstrate how to implement the Phong reflection model using Goraud-shading.",
             ThumbnailLink: "./public/images/thumbnails/16-goraud-shading.png",
             DemoLink: "./ch16-goraud-shading.html",
             CodeLink: "",
         },
         {
             Title: "Phong lighting with Phong-shading",
-            Intro: "",
+            Intro: "Demonstrate how to implement the Phong reflection model using Phong-shading.",
             ThumbnailLink: "./public/images/thumbnails/17-phong-shading.png",
             DemoLink: "./ch17-phong-shading.html",
             CodeLink: "",
@@ -148,28 +148,28 @@ const chapters = {
     textureChapters: [
         {
             Title: "Simple Texture",
-            Intro: "",
+            Intro: "This shows you how to perform 2D texture mapping. make sure you have downloaded the file earth.png. Also, you need to disable the browser restriction of reading local files (browser specific).",
             ThumbnailLink: "./public/images/thumbnails/18-simple-texture.png",
             DemoLink: "./ch18-simple-texture.html",
             CodeLink: "",
         },
         {
             Title: "Texture Teapot",
-            Intro: "",
+            Intro: "A texture mapped Utah teapot in Json format.",
             ThumbnailLink: "./public/images/thumbnails/19-texture-teapot.png",
             DemoLink: "./ch19-texture-teapot.html",
             CodeLink: "",
         },
         {
             Title: "Cubemap",
-            Intro: "",
+            Intro: "A simple cubemap example.",
             ThumbnailLink: "./public/images/thumbnails/20-cubemap.png",
             DemoLink: "./ch20-cubemap.html",
             CodeLink: "",
         },
         {
             Title: "Environment map",
-            Intro: "",
+            Intro: "Environment cube map example.",
             ThumbnailLink: "./public/images/thumbnails/21-environment-map.png",
             DemoLink: "./ch21-environment-map.html",
             CodeLink: "",
@@ -179,7 +179,7 @@ const chapters = {
     advancedChapters: [
         {
             Title: "Loading JSON Models",
-            Intro: "",
+            Intro: "A 3D rendering of Utah teapot in Json format.",
             ThumbnailLink: "./public/images/thumbnails/22-load-json-model.png",
             DemoLink: "./ch22-load-json-model.html",
             CodeLink: "",
