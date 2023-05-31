@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSE 5542 WebGL Tutorial</title>
+
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        label {
+            cursor: pointer;
+        }
+    </style>
+
+
+    <!-- modules -->
+    <script type="text/javascript" src="libs/utils.js"></script>
+    <script type="text/javascript" src="libs/shader-utils.js"></script>
+
+    <!-- vertex Shader -->
+    <script id="vertex-shader" type="x-shader/x-vertex">
+        # version 300 es
+
+        uniform float uOffX;
+        uniform float uOffY;
+
+        in vec3 aVertexPosition;
+        in vec3 aVertexColor;
+        out vec4 vVertextColor;
+
+        void main(void) {
+            gl_Position = vec4(
+                aVertexPosition.x + uOffX, 
+                aVertexPosition.y + uOffY, 
+                aVertexPosition.z, 
+                1.0);
+            vVertextColor = vec4(aVertexColor, 1.0);
+        }
+    </script>
+
+    <!-- fragment Shader -->
+    <script id="fragment-shader" type="x-shader/x-fragment">
+        # version 300 es
+        precision mediump float;
+
+        in vec4 vVertextColor;
+        out vec4 fragColor;
+
+        void main(void) {
+            fragColor = vVertextColor;
+        }
+    </script>
+
+    <script type="text/javascript">
+
+        // Enforcing all JS to be executed in "strict mode"
+        "use strict";
+
+        // Global variable to store the webGL context
+        let gl, shaderProgram, squareVertexPosBuffer, squareIndexBuffer, squareVertexColorBuffer, squareVAO;
+        let offX = 0;
+        let offY = 0;
+
+        function initBuffers() {
+            /*
+                V0                    V3
+                (-0.5, 0.5, 0)        (0.5, 0.5, 0)
+                X---------------------X
+                |                     |
+                |                     |
+                |       (0, 0)        |
+                |                     |
+                |                     |
+                X---------------------X
+                V1                    V2
+                (-0.5, -0.5, 0)       (0.5, -0.5, 0)
+            */
+            const vertices = [
+                -0.5, 0.5, 0,
+                -0.5, -0.5, 0,
+                0.5, -0.5, 0,
+                0.5, 0.5, 0
+            ];
+            const colors = [
+                1.0, 0.0, 0.0,
+                0.0, 1.0, 0.0,
+                0.0, 0.0, 1.0,
+                1.0, 1.0, 0.0,
+            ];
+            const indices = [0, 1, 2, 0, 2, 3];
+
+            // Create and bind the VAO
+            squareVAO = gl.createVertexArray();
+            gl.bindVertexArray(squareVAO);
+
+            // Create and bind the VBO; Bind the vertex position and color data
+            squareVertexPosBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPosBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+            squareVertexPosBuffer.itemSize = 3;
+            squareVertexPosBuffer.numItems = 4;
+            gl.vertexAttribPointer(shaderProgram.aVertexPosition, squareVertexPosBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shaderProgram.aVertexPosition);
+
+            squareVertexColorBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexColorBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+            squareVertexColorBuffer.itemSize = 3;
+            squareVertexColorBuffer.numItems = 4;
+            gl.vertexAttribPointer(shaderProgram.aVertexColor, squareVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shaderProgram.aVertexColor);
+
+            // Setting up the IBO
+            squareIndexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, squareIndexBuffer);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+            squareIndexBuffer.itemsize = 1;
+            squareIndexBuffer.numItems = 6;
+
+            // Clean
+            gl.bindVertexArray(null);
+            gl.bindBuffer(gl.ARRAY_BUFFER, null);
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+        }
+
+        /**
+         * The main drawing routine, but does notthing except clear the canvas with the clear color
+         */
+        function drawScene() {
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            // assign values to the uniform variables in the shader
+            gl.uniform1f(shaderProgram.uOffX, offX);
+            gl.uniform1f(shaderProgram.uOffY, offY);
+            gl.bindVertexArray(squareVAO);
+            gl.drawElements(gl.TRIANGLES, squareIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+            gl.bindVertexArray(null);
+        }
+
+        /**
+         * register the event listener for the keyboard
+         */
+        function initControls() {
+            document.onkeydown = function (ev) { keydown(ev); };
+        }
+
+        function BG(red, green, blue) {
+            gl.clearColor(red, green, blue, 1.0);
+            drawScene();
+        }
+
+
+        function keydown(ev) {
+            //console.log(ev.keyCode, ev.key);
+            switch (ev.key) {
+                case 'a':
+                    offX -= 0.1;
+                    break;
+                case 'd':
+                    offX += 0.1;
+                    break;
+                case 'w':
+                    offY += 0.1;
+                    break;
+                case 's':
+                    offY -= 0.1;
+                    break;
+            }
+            drawScene();
+        }
+
+        /**
+         * init the program
+         */
+        function init() {
+            // Here we update the code structure by moving the getCanvas() and the getWebGLContext() to the utils object.
+            const canvas = utils.getCanvas("webgl-canvas");
+            gl = utils.getWebGLContext(canvas);
+            // Initialize the shaders
+            shaderProgram = new ShaderProgram(gl, "vertex-shader", "fragment-shader");
+            // Attach the location of shader attributes to the shader program instance for future usages
+            shaderProgram.aVertexPosition = gl.getAttribLocation(shaderProgram.program, "aVertexPosition");
+            shaderProgram.aVertexColor = gl.getAttribLocation(shaderProgram.program, "aVertexColor");
+            shaderProgram.uOffX = gl.getUniformLocation(shaderProgram.program, "uOffX");
+            shaderProgram.uOffY = gl.getUniformLocation(shaderProgram.program, "uOffY");
+
+            initBuffers();
+            // Set the clear color as black
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            drawScene();
+            initControls();
+        }
+
+        // Call the init function once the document has loaded
+        window.onload = init;
+
+    </script>
+
+</head>
+
+<body>
+    <canvas id="webgl-canvas" width="800" height="600">
+
+    </canvas>
+    <h4>
+        using 'w', 's', 'a', 'd' to move the square
+    </h4>
+
+    <h4>Select your preferred background color:</h4>
+    <div>
+        <button onclick="BG(1,0,0)"> Red</button>
+        <button onclick="BG(0,1,0)"> Green</button>
+        <button onclick="BG(0,0,1)"> Blue</button>
+        <button onclick="BG(0.5,0.5,0.5)"> Grey</button>
+        <button onclick="BG(0,0,0)"> Black</button>
+        <button onclick="BG(1,1,1)"> White</button>
+
+    </div>
+</body>
+
+</html>

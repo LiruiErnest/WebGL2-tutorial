@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSE 5542 WebGL Tutorial</title>
+
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        label {
+            cursor: pointer;
+        }
+    </style>
+
+
+    <!-- modules -->
+    <script type="text/javascript" src="libs/gl-matrix.js"></script>
+    <script type="text/javascript" src="libs/utils.js"></script>
+    <script type="text/javascript" src="libs/shader-utils.js"></script>
+
+    <!-- vertex Shader -->
+    <script id="vertex-shader" type="x-shader/x-vertex">
+        # version 300 es
+        uniform mat4 uModelMatrix;
+
+        in vec3 aVertexPosition;
+        in vec3 aVertexColor;
+        out vec4 vVertextColor;
+
+        void main(void) {
+            gl_PointSize = 40.0;
+            gl_Position = uModelMatrix * vec4(aVertexPosition, 1.0);
+            vVertextColor = vec4(aVertexColor, 1.0);
+        }
+    </script>
+
+    <!-- fragment Shader -->
+    <script id="fragment-shader" type="x-shader/x-fragment">
+        # version 300 es
+        precision mediump float;
+
+        in vec4 vVertextColor;
+        out vec4 fragColor;
+
+        void main(void) {
+            fragColor = vVertextColor;
+        }
+    </script>
+
+    <script type="text/javascript">
+
+        // Enforcing all JS to be executed in "strict mode"
+        "use strict";
+
+        // Global variable to store the webGL context
+        let gl, shaderProgram, squareVertexPosBuffer, squareIndexBuffer, squareVertexColorBuffer, squareVAO;
+        let drawingMode = 'TRIANGLES';
+        let modelMatrix = mat4.create();
+        let zAngle = 0.0; //rotate around the Z axis
+        let lastMouseX = 0, lastMouseY = 0;
+
+        function degToRad(degrees) {
+            return degrees * Math.PI / 180;
+        }
+
+        function initBuffers() {
+
+            const vertices = [
+                -0.5, 0.5, 0,
+                -0.5, -0.5, 0,
+                0.5, -0.5, 0,
+                0.5, 0.5, 0
+            ];
+            const colors = [
+                1.0, 0.0, 0.0,
+                0.0, 1.0, 0.0,
+                0.0, 0.0, 1.0,
+                1.0, 1.0, 0.0,
+            ];
+            const indices = [0, 1, 2, 0, 2, 3];
+
+            // Create and bind the VAO
+            squareVAO = gl.createVertexArray();
+            gl.bindVertexArray(squareVAO);
+
+            // Create and bind the VBO; Bind the vertex position and color data
+            squareVertexPosBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPosBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+            squareVertexPosBuffer.itemSize = 3;
+            squareVertexPosBuffer.numItems = 4;
+            gl.vertexAttribPointer(shaderProgram.aVertexPosition, squareVertexPosBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shaderProgram.aVertexPosition);
+
+            squareVertexColorBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexColorBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+            squareVertexColorBuffer.itemSize = 3;
+            squareVertexColorBuffer.numItems = 4;
+            gl.vertexAttribPointer(shaderProgram.aVertexColor, squareVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shaderProgram.aVertexColor);
+
+            // Setting up the IBO
+            squareIndexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, squareIndexBuffer);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+            squareIndexBuffer.itemsize = 1;
+            squareIndexBuffer.numItems = 6;
+
+            // Clean
+            gl.bindVertexArray(null);
+            gl.bindBuffer(gl.ARRAY_BUFFER, null);
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+        }
+
+        /**
+         * The main drawing routine, but does notthing except clear the canvas with the clear color
+         */
+        function drawScene() {
+            // Here we update the model matrix by calling the mat4.rotateZ()
+            // check https://glmatrix.net/docs/module-mat4.html for more details
+            mat4.identity(modelMatrix);
+            mat4.rotateZ(modelMatrix, modelMatrix, degToRad(zAngle));
+            gl.uniformMatrix4fv(shaderProgram.uModelMatrix, false, modelMatrix);
+
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            gl.bindVertexArray(squareVAO);
+            switch (drawingMode) {
+                case 'POINTS': {
+                    gl.drawElements(gl.POINTS, squareIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+                    break;
+                }
+                case 'LINES': {
+                    gl.drawElements(gl.LINE_LOOP, squareIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+                    break;
+                }
+                case 'TRIANGLES': {
+                    gl.drawElements(gl.TRIANGLES, squareIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+                    break;
+                }
+            }
+            gl.bindVertexArray(null);
+        }
+
+        /**
+         * register the event listener for the dragging
+         */
+        let isDragging = false;
+        function initControls(canvas) {
+            canvas.onmousedown = event => mouseDown(event);
+            canvas.onmouseup = event => mouseUp(event);
+            canvas.onmouseout = event => mouseUp(event);
+            canvas.onmousemove = event => mouseMove(event);
+        }
+
+        function mouseDown(event) {
+            isDragging = true;
+            lastMouseX = event.clientX;
+            lastMouseY = event.clientY;
+        }
+
+        function mouseMove(event) {
+            if (isDragging) {
+                let mouseX = event.clientX;
+                let mouseY = event.clientY;
+                let diffX = mouseX - lastMouseX;
+                zAngle += diffX / 5;
+                lastMouseX = mouseX;
+                lastMouseY = mouseY;
+                drawScene();
+            }
+        }
+
+        function mouseUp(event) {
+            isDragging = false;
+        }
+
+        function BG(red, green, blue) {
+            gl.clearColor(red, green, blue, 1.0);
+            drawScene();
+        }
+
+        function geometry(type) {
+            drawingMode = type;
+            drawScene();
+        }
+
+        function redraw(){
+            zAngle = 0;
+            drawScene();
+        }
+
+        /**
+         * init the program
+         */
+        function init() {
+            const canvas = utils.getCanvas("webgl-canvas");
+            gl = utils.getWebGLContext(canvas);
+            // Initialize the shaders
+            shaderProgram = new ShaderProgram(gl, "vertex-shader", "fragment-shader");
+            // Attach the location of shader attributes to the shader program instance for future usages
+            shaderProgram.aVertexPosition = gl.getAttribLocation(shaderProgram.program, "aVertexPosition");
+            shaderProgram.aVertexColor = gl.getAttribLocation(shaderProgram.program, "aVertexColor");
+            shaderProgram.uModelMatrix = gl.getUniformLocation(shaderProgram.program, "uModelMatrix");
+            initBuffers();
+            // Set the clear color as black
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            drawScene();
+            initControls(canvas);
+        }
+
+        // Call the init function once the document has loaded
+        window.onload = init;
+
+    </script>
+
+</head>
+
+<body>
+    <canvas id="webgl-canvas" width="600" height="600">
+
+    </canvas>
+
+    <h4> Geometry: </h4>
+    <button onclick="geometry('POINTS')"> POINTS</button>
+    <button onclick="geometry('LINES')"> LINEs</button>
+    <button onclick="geometry('TRIANGLES')"> TRIANGLES</button>
+
+    <h4>Select your preferred background color:</h4>
+    <div>
+        <button onclick="BG(1,0,0)"> Red</button>
+        <button onclick="BG(0,1,0)"> Green</button>
+        <button onclick="BG(0,0,1)"> Blue</button>
+        <button onclick="BG(0.5,0.5,0.5)"> Grey</button>
+        <button onclick="BG(0,0,0)"> Black</button>
+        <button onclick="BG(1,1,1)"> White</button>
+    </div>
+
+    <h4>
+        Click on the left mouse button and move the coursor to rotate
+    </h4>
+    <button onclick="redraw()"> Go Back! </button>
+
+</body>
+
+</html>

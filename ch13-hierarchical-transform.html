@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSE 5542 WebGL Tutorial</title>
+
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        label {
+            cursor: pointer;
+        }
+    </style>
+
+
+    <!-- modules -->
+    <script type="text/javascript" src="libs/gl-matrix.js"></script>
+    <script type="text/javascript" src="libs/utils.js"></script>
+    <script type="text/javascript" src="libs/shader-utils.js"></script>
+
+    <!-- vertex Shader -->
+    <script id="vertex-shader" type="x-shader/x-vertex">
+        # version 300 es
+        uniform mat4 uModelMatrix;
+
+        in vec3 aVertexPosition;
+        in vec3 aVertexColor;
+        out vec4 vVertextColor;
+
+        void main(void) {
+            gl_PointSize = 40.0;
+            gl_Position = uModelMatrix * vec4(aVertexPosition, 1.0);
+            vVertextColor = vec4(aVertexColor, 1.0);
+        }
+    </script>
+
+    <!-- fragment Shader -->
+    <script id="fragment-shader" type="x-shader/x-fragment">
+        # version 300 es
+        precision mediump float;
+
+        in vec4 vVertextColor;
+        out vec4 fragColor;
+
+        void main(void) {
+            fragColor = vVertextColor;
+        }
+    </script>
+
+    <script type="text/javascript">
+
+        // Enforcing all JS to be executed in "strict mode"
+        "use strict";
+
+        // Global variable to store the webGL context
+        let gl,
+            shaderProgram,
+            squareVertexPosBuffer,
+            squareIndexBuffer,
+            squareVertexColorBuffer,
+            squareVAO,
+            lineVertexPosBuffer,
+            lineVertexColorBuffer,
+            lineVAO,
+            whichObject = 1;  //determine which object is currently selected
+
+        let modelMatrix1 = mat4.create();
+        let modelMatrix2 = mat4.create();
+        let modelMatrix3 = mat4.create();
+        let zAngle = 0.0; //rotate around the Z axis
+        let lastMouseX = 0, lastMouseY = 0;
+
+        function setMatrixUniforms(matrix) {
+            gl.uniformMatrix4fv(shaderProgram.uModelMatrix, false, matrix);
+        }
+
+        function pushMatrix(stack, matrix) {
+            let copy = mat4.create();
+            mat4.copy(copy, matrix);
+            stack.push(copy);
+        }
+
+        function popMatrix(stack, copy) {
+            if (stack.length == 0) {
+                console.error("invalid pop operation");
+            }
+            else {
+                copy = stack.pop();
+            }
+        }
+
+
+        function degToRad(degrees) {
+            return degrees * Math.PI / 180;
+        }
+
+        function initBuffers() {
+
+            const vertices = [
+                -0.5, 0.5, 0,
+                -0.5, -0.5, 0,
+                0.5, -0.5, 0,
+                0.5, 0.5, 0
+            ];
+            const colors = [
+                1.0, 0.0, 0.0,
+                0.0, 1.0, 0.0,
+                0.0, 0.0, 1.0,
+                1.0, 1.0, 0.0,
+            ];
+            const indices = [0, 1, 2, 0, 2, 3];
+
+            // Create and bind the square VAO
+            squareVAO = gl.createVertexArray();
+            gl.bindVertexArray(squareVAO);
+
+            // Create and bind the VBO; Bind the vertex position and color data
+            squareVertexPosBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPosBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+            squareVertexPosBuffer.itemSize = 3;
+            squareVertexPosBuffer.numItems = 4;
+            gl.vertexAttribPointer(shaderProgram.aVertexPosition, squareVertexPosBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shaderProgram.aVertexPosition);
+
+            squareVertexColorBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexColorBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+            squareVertexColorBuffer.itemSize = 3;
+            squareVertexColorBuffer.numItems = 4;
+            gl.vertexAttribPointer(shaderProgram.aVertexColor, squareVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shaderProgram.aVertexColor);
+
+            // Setting up the square IBO
+            squareIndexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, squareIndexBuffer);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+            squareIndexBuffer.itemsize = 1;
+            squareIndexBuffer.numItems = 6;
+
+            const line_vertices = [0.0, 0.0, 0.0,
+                0.7, 0.0, 0.0,
+                0.0, 0.0, 0.0,
+                0.0, 0.7, 0.0];
+
+            // Create and bind the line VAO
+            lineVAO = gl.createVertexArray();
+            gl.bindVertexArray(lineVAO);
+
+            lineVertexPosBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, lineVertexPosBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(line_vertices), gl.STATIC_DRAW);
+            lineVertexPosBuffer.itemSize = 3;
+            lineVertexPosBuffer.numItems = 4;
+            gl.vertexAttribPointer(shaderProgram.aVertexPosition, lineVertexPosBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shaderProgram.aVertexPosition);
+
+            lineVertexColorBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, lineVertexColorBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+            lineVertexColorBuffer.itemSize = 3;
+            lineVertexColorBuffer.numItems = 4;
+            gl.vertexAttribPointer(shaderProgram.aVertexColor, lineVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shaderProgram.aVertexColor);
+
+            // Clean
+            gl.bindVertexArray(null);
+            gl.bindBuffer(gl.ARRAY_BUFFER, null);
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+        }
+
+
+        function drawSquareWAxis(matrix) {
+            setMatrixUniforms(matrix);
+            gl.bindVertexArray(squareVAO);
+            gl.drawElements(gl.TRIANGLES, squareIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+            gl.bindVertexArray(lineVAO);
+            gl.drawArrays(gl.LINES, 0, lineVertexPosBuffer.numItems);
+            gl.bindVertexArray(null);
+        }
+
+        /**
+         * The main drawing routine, but does notthing except clear the canvas with the clear color
+         */
+        function drawScene() {
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            let modelMatrix = mat4.create();
+            mat4.identity(modelMatrix);
+
+            modelMatrix = mat4.multiply(modelMatrix, modelMatrix, modelMatrix1);
+            drawSquareWAxis(modelMatrix);
+
+            modelMatrix = mat4.multiply(modelMatrix, modelMatrix, modelMatrix2);
+            drawSquareWAxis(modelMatrix);
+
+            modelMatrix = mat4.multiply(modelMatrix, modelMatrix, modelMatrix3);
+            drawSquareWAxis(modelMatrix);
+        }
+
+        /**
+         * register the event listener for the dragging
+         */
+        let isDragging = false;
+        function initControls(canvas) {
+            document.onkeydown = function (event) { keydown(event); };
+            canvas.onmousedown = event => mouseDown(event);
+            canvas.onmouseup = event => mouseUp(event);
+            canvas.onmouseout = event => mouseUp(event);
+            canvas.onmousemove = event => mouseMove(event);
+
+        }
+
+        function keydown(ev) {
+            //console.log(ev.keyCode, ev.key);
+            switch (ev.keyCode) {
+                case 38:  //arrow up
+                    translateMatrix([0.0, 0.1, 0.0]);
+                    break;
+                case 40:  //arrow down
+                    translateMatrix([0.0, -0.1, 0.0]);
+                    break;
+                case 37:  //arrow left
+                    translateMatrix([-0.1, 0.0, 0.0]);
+                    break;
+                case 39:  //arrow right
+                    translateMatrix([0.1, 0.0, 0.0]);
+                    break;
+                case 83: {  //s or s+shift
+                    if (ev.shiftKey) {
+                        scaleMatrix([1.05, 1.05, 1.05]);
+                    }
+                    else {
+                        scaleMatrix([0.95, 0.95, 0.95]);
+                    }
+                    break;
+                }
+            }
+            drawScene();
+        }
+
+        function mouseDown(event) {
+            isDragging = true;
+            lastMouseX = event.clientX;
+            lastMouseY = event.clientY;
+        }
+
+        function mouseMove(event) {
+            if (isDragging) {
+                let mouseX = event.clientX;
+                let mouseY = event.clientY;
+                let diffX = mouseX - lastMouseX;
+                rotateMatrix(degToRad(diffX / 5));
+                lastMouseX = mouseX;
+                lastMouseY = mouseY;
+                drawScene();
+            }
+        }
+
+        function scaleMatrix(scaleVec) {
+            switch (whichObject) {
+                case 1: {
+                    mat4.scale(modelMatrix1, modelMatrix1, scaleVec);
+                    break;
+                }
+                case 2: {
+                    mat4.scale(modelMatrix2, modelMatrix2, scaleVec);
+                    break;
+                }
+                case 3: {
+                    mat4.scale(modelMatrix3, modelMatrix3, scaleVec);
+                    break;
+                }
+            }
+        }
+
+        function translateMatrix(translateVec) {
+            switch (whichObject) {
+                case 1: {
+                    mat4.translate(modelMatrix1, modelMatrix1, translateVec);
+                    break;
+                }
+                case 2: {
+                    mat4.translate(modelMatrix2, modelMatrix2, translateVec);
+                    break;
+                }
+                case 3: {
+                    mat4.translate(modelMatrix3, modelMatrix3, translateVec);
+                    break;
+                }
+            }
+        }
+
+        function rotateMatrix(rad) {
+            switch (whichObject) {
+                case 1: {
+                    mat4.rotateZ(modelMatrix1, modelMatrix1, rad);
+                    break;
+                }
+                case 2: {
+                    mat4.rotateZ(modelMatrix2, modelMatrix2, rad);
+                    break;
+                }
+                case 3: {
+                    mat4.rotateZ(modelMatrix3, modelMatrix3, rad);
+                    break;
+                }
+            }
+        }
+
+        function mouseUp(event) {
+            isDragging = false;
+        }
+
+        function BG(red, green, blue) {
+            gl.clearColor(red, green, blue, 1.0);
+            drawScene();
+        }
+
+        function switchSquare(squareID) {
+            whichObject = squareID;
+            document.getElementById('currentID').innerHTML = squareID;
+            drawScene();
+        }
+
+
+        function redraw() {
+            initTransformation();
+            drawScene();
+        }
+
+        /**
+         * Initialize the transformation matrix three squares
+         * check https://glmatrix.net/docs/module-mat4.html for more details
+         */
+        function initTransformation() {
+            mat4.identity(modelMatrix1);
+            mat4.identity(modelMatrix2);
+            mat4.identity(modelMatrix3);
+        }
+
+        /**
+         * init the program
+         */
+        function init() {
+            const canvas = utils.getCanvas("webgl-canvas");
+            gl = utils.getWebGLContext(canvas);
+            // Initialize the shaders
+            shaderProgram = new ShaderProgram(gl, "vertex-shader", "fragment-shader");
+            // Attach the location of shader attributes to the shader program instance for future usages
+            shaderProgram.aVertexPosition = gl.getAttribLocation(shaderProgram.program, "aVertexPosition");
+            shaderProgram.aVertexColor = gl.getAttribLocation(shaderProgram.program, "aVertexColor");
+            shaderProgram.uModelMatrix = gl.getUniformLocation(shaderProgram.program, "uModelMatrix");
+            initBuffers();
+            initTransformation();
+            // Set the clear color as black
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            drawScene();
+            initControls(canvas);
+        }
+
+        // Call the init function once the document has loaded
+        window.onload = init;
+
+    </script>
+
+</head>
+
+<body>
+    <canvas id="webgl-canvas" width="600" height="600">
+
+    </canvas>
+
+    <p> Select Object:
+        <button onclick="switchSquare(1)"> Square1</button>
+        <button onclick="switchSquare(2)"> Square2</button>
+        <button onclick="switchSquare(3)"> Square3</button>
+
+        Current selection: <label id="currentID">1</label>
+    </p>
+
+
+    <p> Select your preferred background color:
+        <button onclick="BG(1,0,0)"> Red</button>
+        <button onclick="BG(0,1,0)"> Green</button>
+        <button onclick="BG(0,0,1)"> Blue</button>
+        <button onclick="BG(0.5,0.5,0.5)"> Grey</button>
+        <button onclick="BG(0,0,0)"> Black</button>
+        <button onclick="BG(1,1,1)"> White</button>
+    </p>
+
+    <h4>Transformation</h4>
+
+    <ul>
+        <li>Clicking on the left mouse button and move the coursor to rotate</li>
+        <li>Using arrow keys to translate</li>
+        <li>Using 's' to scale down, 'shift' + 's' to scale up</li>
+    </ul>
+
+    <h4>
+
+    </h4>
+    <button onclick="redraw()"> Go Back! </button>
+
+</body>
+
+</html>

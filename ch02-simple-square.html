@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSE 5542 WebGL Tutorial</title>
+
+    <!-- modules -->
+    <script type="text/javascript" src="libs/utils.js"></script>
+    <script type="text/javascript" src="libs/shader-utils.js"></script>
+
+    <!-- vertex Shader -->
+    <script id="vertex-shader" type="x-shader/x-vertex">
+        # version 300 es
+        precision mediump float;
+
+        in vec3 aVertexPosition;
+
+        void main(void) {
+            // by pass the vertex coordinates; all need to be in [-1,-1] to be vislble 
+            gl_Position = vec4(aVertexPosition, 1.0);
+        }
+    </script>
+
+    <!-- fragment Shader -->
+    <script id="fragment-shader" type="x-shader/x-fragment">
+        # version 300 es
+        precision mediump float;
+
+        // the result of this shader
+        out vec4 fragColor;
+
+        void main(void) {
+            // Set all fragments as red
+            fragColor = vec4(1.0, 0.0, 0.0, 1.0);
+        }
+    </script>
+
+    <script type="text/javascript">
+
+        // Enforcing all JS to be executed in "strict mode"
+        "use strict";
+
+        // Global variable to store the webGL context
+        let gl, shaderProgram, squareVertexPosBuffer;
+
+        function initBuffers() {
+            const vertices = [
+                -0.5, 0.5, 0, -0.5, -0.5, 0.0, 0.5, -0.5, 0.0, -0.5, 0.5, 0.0, 0.5, -0.5, 0.0, 0.5, 0.5,
+                0.0,
+            ];
+            squareVertexPosBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPosBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+
+            squareVertexPosBuffer.itemSize = 3; //three floats (x,y,z) per vertex
+            squareVertexPosBuffer.numItems = 6; //six vertices (two triangles, three each)
+            // Clean
+            gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        }
+
+        /**
+         * The main drawing routine, but does notthing except clear the canvas with the clear color
+         */
+        function drawScene() {
+            // gl.canvas refers to the canvas element that is associated with the context
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPosBuffer);
+            // Pointing an Attribute to the Currently-Bound VBO (i.e., squareVertexPosBuffer)
+            gl.vertexAttribPointer(shaderProgram.aVertexPosition, squareVertexPosBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            // Activate the vertex shader attribute
+            gl.enableVertexAttribArray(shaderProgram.aVertexPosition);
+            gl.drawArrays(gl.TRIANGLES, 0, squareVertexPosBuffer.numItems); // draw two triangles that involve 6 vertices 
+            // Clean
+            gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        }
+
+        /**
+         * init the program
+         */
+        function init() {
+            // Here we update the code structure by moving the getCanvas() and the getWebGLContext() to the utils object.
+            const canvas = utils.getCanvas("webgl-canvas");
+            gl = utils.getWebGLContext(canvas);
+            // Initialize the shaders
+            shaderProgram = new ShaderProgram(gl, "vertex-shader", "fragment-shader");
+            // Attach the location of shader attributes to the shader program instance for future usages
+            shaderProgram.aVertexPosition = gl.getAttribLocation(shaderProgram.program, "aVertexPosition");
+            initBuffers();
+            // Set the clear color as black
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            drawScene();
+        }
+
+        // Call the init function once the document has loaded
+        window.onload = init;
+
+    </script>
+
+</head>
+
+<body>
+    <canvas id="webgl-canvas" width="800" height="600">
+
+    </canvas>
+</body>
+
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSE 5542 WebGL Tutorial</title>
+
+    <script type="text/javascript" src="ch01-open-canvas.js"></script>
+    <script type="text/javascript" >
+        // Enforcing all JS to be executed in "strict mode"
+        "use strict";
+
+        // Global variable to store the webGL context
+        let gl;
+
+        /**
+         * Find and return a Canvas element given an ID
+         * @param {string} id
+         */
+        function getCanvas(id) {
+            const canvas = document.getElementById(id);
+            if (!canvas) {
+                alert(`Cannot find the canvas with id ${id} on this page.`);
+                return null;
+            }
+            return canvas;
+        }
+
+        /**
+         * Given the canvas, return the webGL 2 context.
+         * @param {} canvas
+         * @returns
+         */
+        function getWebGLContext(canvas) {
+            // Get the WebGL2 context
+            const gl = canvas.getContext("webgl2");
+            if (gl) {
+                return gl;
+            } else {
+                alert(`Could not initialise WebGL2.`);
+            }
+        }
+
+        /**
+         * The main drawing routine, but does notthing except clear the canvas with the clear color 
+         */
+        function drawScene() {
+            // gl.canvas refers to the canvas element
+            // that is associated with the context
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        }
+
+        /**
+         * init the program
+         */
+        function init() {
+            const canvas = getCanvas("webgl-canvas");
+            gl = getWebGLContext(canvas);
+            gl.clearColor(1.0, 1.0, 0.0, 1.0);  //yellow color
+            drawScene();
+        }
+
+        // Call the init function once the document has loaded
+        window.onload = init;
+    </script>
+</head>
+
+<body>
+    <canvas id="webgl-canvas" width="800" height="600">
+    </canvas>
+</body>
+
+</html>

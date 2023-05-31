@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSE 5542 WebGL Tutorial</title>
+
+    <!-- modules -->
+    <script type="text/javascript" src="libs/utils.js"></script>
+    <script type="text/javascript" src="libs/shader-utils.js"></script>
+
+    <!-- vertex Shader -->
+    <script id="vertex-shader-1" type="x-shader/x-vertex">
+        # version 300 es
+        precision mediump float;
+
+        in vec3 aVertexPosition;
+
+        void main(void) {
+            gl_Position = vec4(aVertexPosition, 1.0);
+        }
+    </script>
+
+    <!-- fragment Shader -->
+    <script id="fragment-shader-1" type="x-shader/x-fragment">
+        # version 300 es
+        precision mediump float;
+
+        // the result of this shader
+        out vec4 fragColor;
+
+        void main(void) {
+            // Set all fragments as red
+            fragColor = vec4(1.0, 0.0, 0.0, 1.0);
+        }
+    </script>
+
+    <!-- vertex Shader -->
+    <script id="vertex-shader-2" type="x-shader/x-vertex">
+        # version 300 es
+        precision mediump float;
+
+        in vec3 aVertexPosition;
+        in vec3 aVertexColor;
+        out vec4 vVertextColor;
+
+        void main(void) {
+            gl_Position = vec4(aVertexPosition, 1.0);
+            vVertextColor = vec4(aVertexColor, 1.0);
+        }
+    </script>
+
+    <!-- fragment Shader -->
+    <script id="fragment-shader-2" type="x-shader/x-fragment">
+        # version 300 es
+        precision mediump float;
+
+        in vec4 vVertextColor;
+        out vec4 fragColor;
+
+        void main(void) {
+            fragColor = vVertextColor;
+        }
+    </script>
+
+    <script type="text/javascript">
+
+        // Enforcing all JS to be executed in "strict mode"
+        "use strict";
+
+        // Global variable to store the webGL context
+        let gl, shaderProgram1, shaderProgram2, squareVertexPosBuffer, triangleVertexPosBuffer, triangleVertexColorBuffer;
+
+        function initBuffers() {
+            const squareVertices = [
+                -0.6, 0.2, 0.0,
+                -0.6, -0.2, 0.0,
+                -0.2, 0.2, 0.0,
+                -0.2, -0.2, 0.0,
+            ];
+            squareVertexPosBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPosBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(squareVertices), gl.STATIC_DRAW);
+            squareVertexPosBuffer.itemSize = 3; //three floats (x,y,z) per vertex
+            squareVertexPosBuffer.numItems = 4; //4 vertices (two triangles, three each
+            
+            const triangleVertices = [
+                0.6, 0.6, 0.0,
+                0.6, 0.1, 0.0,
+                0.1, 0.1, 0.0,
+            ];
+            triangleVertexPosBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPosBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangleVertices), gl.STATIC_DRAW);
+            triangleVertexPosBuffer.itemSize = 3; //three floats (x,y,z) per vertex
+            triangleVertexPosBuffer.numItems = 3; //4 vertices 
+
+            const triangleColors = [
+                1.0, 0.0, 0.0,
+                0.0, 1.0, 0.0,
+                0.0, 0.0, 1.0,
+            ];
+            triangleVertexColorBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexColorBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangleColors), gl.STATIC_DRAW);
+            triangleVertexColorBuffer.itemSize = 3;
+            triangleVertexColorBuffer.numItems = 3;
+
+            // Clean
+            gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        }
+
+        /**
+         * The main drawing routine, but does notthing except clear the canvas with the clear color
+         */
+        function drawScene() {
+            // gl.canvas refers to the canvas element that is associated with the context
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+            shaderProgram1.useProgram();
+            gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPosBuffer);
+            // we need to configue all vertex attributes for each object in the rendering function!
+            gl.vertexAttribPointer(shaderProgram1.aVertexPosition, squareVertexPosBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shaderProgram1.aVertexPosition);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, squareVertexPosBuffer.numItems); 
+
+            shaderProgram2.useProgram();
+            gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPosBuffer);
+            gl.vertexAttribPointer(shaderProgram2.aVertexPosition, triangleVertexPosBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shaderProgram2.aVertexPosition);
+            gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexColorBuffer);
+            gl.vertexAttribPointer(shaderProgram2.aVertexColor, triangleVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shaderProgram2.aVertexColor);
+            gl.drawArrays(gl.TRIANGLES, 0, triangleVertexPosBuffer.numItems);
+
+            // Clean
+            gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        }
+
+        /**
+         * init the program
+         */
+        function init() {
+            // Here we update the code structure by moving the getCanvas() and the getWebGLContext() to the utils object.
+            const canvas = utils.getCanvas("webgl-canvas");
+            gl = utils.getWebGLContext(canvas);
+            // Initialize the shader for the first triangle
+            shaderProgram1 = new ShaderProgram(gl, "vertex-shader-1", "fragment-shader-1");
+            shaderProgram1.aVertexPosition = gl.getAttribLocation(shaderProgram1.program, "aVertexPosition");
+
+            // Initialize the shader for the second triangle
+            shaderProgram2 = new ShaderProgram(gl, "vertex-shader-2", "fragment-shader-2");
+            shaderProgram2.aVertexPosition = gl.getAttribLocation(shaderProgram2.program, "aVertexPosition");
+            shaderProgram2.aVertexColor = gl.getAttribLocation(shaderProgram2.program, "aVertexColor");
+
+            initBuffers();
+            // Set the clear color as black
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            drawScene();
+        }
+
+        // Call the init function once the document has loaded
+        window.onload = init;
+
+    </script>
+</head>
+
+<body>
+    <canvas id="webgl-canvas" width="800" height="600">
+
+    </canvas>
+</body>
+
+</html>

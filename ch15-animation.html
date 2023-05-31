@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSE 5542 WebGL Tutorial</title>
+
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        label {
+            cursor: pointer;
+        }
+    </style>
+
+
+    <!-- modules -->
+    <script type="text/javascript" src="libs/gl-matrix.js"></script>
+    <script type="text/javascript" src="libs/utils.js"></script>
+    <script type="text/javascript" src="libs/shader-utils.js"></script>
+
+    <!-- vertex Shader -->
+    <script id="vertex-shader" type="x-shader/x-vertex">
+        # version 300 es
+        uniform mat4 uModelMatrix;
+        uniform mat4 uViewMatrix;
+        uniform mat4 uProjMatrix;
+
+        in vec3 aVertexPosition;
+        in vec3 aVertexColor;
+        out vec4 vVertextColor;
+
+        void main(void) {
+            gl_PointSize = 40.0;
+            gl_Position = uProjMatrix * uViewMatrix * uModelMatrix * vec4(aVertexPosition, 1.0);
+            //gl_Position = uModelMatrix * vec4(aVertexPosition, 1.0);
+            vVertextColor = vec4(aVertexColor, 1.0);
+        }
+    </script>
+
+    <!-- fragment Shader -->
+    <script id="fragment-shader" type="x-shader/x-fragment">
+        # version 300 es
+        precision mediump float;
+
+        in vec4 vVertextColor;
+        out vec4 fragColor;
+
+        void main(void) {
+            fragColor = vVertextColor;
+        }
+    </script>
+
+    <script type="text/javascript">
+
+        // Enforcing all JS to be executed in "strict mode"
+        "use strict";
+
+        // Global variable to store the webGL context
+        let gl,
+            shaderProgram,
+            cubeVertexPosBuffer,
+            cubeVertexColorBuffer,
+            cubeIndexBuffer,
+            cubeVAO,
+            drawingMode = 'TRIANGLES';
+
+        let modelMatrix = mat4.create();
+        let viewMatrix = mat4.create();
+        let projMatrix = mat4.create();
+        let zAngle = 0.0;
+        let lastMouseX = 0, lastMouseY = 0;
+
+        function degToRad(degrees) {
+            return degrees * Math.PI / 180;
+        }
+
+        function initBuffers() {
+
+            const vertices = [   // Vertex coordinates
+                0.5, 0.5, -.5,
+                -0.5, 0.5, -.5,
+                - 0.5, -0.5, -.5,
+                0.5, -0.5, -.5,
+                0.5, 0.5, .5,
+                -0.5, 0.5, .5,
+                -0.5, -0.5, .5,
+                0.5, -0.5, .5
+            ];
+            const colors = [     // Colors
+                1.0, 0.0, 0.0,
+                0.0, 1.0, 0.0,
+                0.0, 0.0, 1.0,
+                1.0, 1.0, 0.0,
+                1.0, 0.0, 0.0,
+                0.0, 1.0, 0.0,
+                0.0, 0.0, 1.0,
+                1.0, 1.0, 0.0
+            ];
+            const indices = [       // Indices of the vertices
+                0, 1, 2, 0, 2, 3, 0, 3, 7, 0, 7, 4, 6, 2, 3, 6, 3, 7, 5, 1, 2, 5, 2, 6, 5, 1, 0, 5, 0, 4, 5, 6, 7, 5, 7, 4
+            ];
+
+            // Create and bind the cube VAO
+            cubeVAO = gl.createVertexArray();
+            gl.bindVertexArray(cubeVAO);
+
+            // Create and bind the VBO; Bind the vertex position and color data
+            cubeVertexPosBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexPosBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+            cubeVertexPosBuffer.itemSize = 3;
+            cubeVertexPosBuffer.numItems = 8;
+            gl.vertexAttribPointer(shaderProgram.aVertexPosition, cubeVertexPosBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shaderProgram.aVertexPosition);
+
+            cubeVertexColorBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexColorBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+            cubeVertexColorBuffer.itemSize = 3;
+            cubeVertexColorBuffer.numItems = 8;
+            gl.vertexAttribPointer(shaderProgram.aVertexColor, cubeVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shaderProgram.aVertexColor);
+
+            // Setting up the cube IBO
+            cubeIndexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeIndexBuffer);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+            cubeIndexBuffer.itemsize = 1;
+            cubeIndexBuffer.numItems = 36;
+
+            // Clean
+            gl.bindVertexArray(null);
+            gl.bindBuffer(gl.ARRAY_BUFFER, null);
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+        }
+
+        function setMatrixUniforms(modelMatrix, viewMatrix, projMatrix) {
+            gl.uniformMatrix4fv(shaderProgram.uModelMatrix, false, modelMatrix);
+            gl.uniformMatrix4fv(shaderProgram.uViewMatrix, false, viewMatrix);
+            gl.uniformMatrix4fv(shaderProgram.uProjMatrix, false, projMatrix);
+        }
+
+        /**
+         * The main drawing routine, but does notthing except clear the canvas with the clear color
+         */
+        function drawScene() {
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            gl.bindVertexArray(cubeVAO);
+            //perspective(out, fovy, aspect, near, far)
+            mat4.perspective(projMatrix, 60 * (Math.PI / 180), gl.canvas.width / gl.canvas.height, 0.1, 1000);
+            //lookAt(out, eye, center, up)
+            mat4.lookAt(viewMatrix, [0, 0, 3], [0, 0, 0], [0, 1, 0]);
+            setMatrixUniforms(modelMatrix, viewMatrix, projMatrix);
+            switch (drawingMode) {
+                case 'POINTS': {
+                    gl.drawArrays(gl.POINTS, 0, cubeVertexPosBuffer.numItems);
+                    break;
+                }
+                case 'LINES': {
+                    gl.drawArrays(gl.LINE_LOOP, 0, cubeVertexPosBuffer.numItems);
+                    break;
+                }
+                case 'TRIANGLES': {
+                    gl.drawElements(gl.TRIANGLES, cubeIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+                    break;
+                }
+            }
+            gl.bindVertexArray(null);
+        }
+
+        /**
+         * register the event listener for the dragging
+         */
+        let isDragging = false;
+        function initControls(canvas) {
+            document.onkeydown = function (event) { keydown(event); };
+            canvas.onmousedown = event => mouseDown(event);
+            canvas.onmouseup = event => mouseUp(event);
+            canvas.onmouseout = event => mouseUp(event);
+            canvas.onmousemove = event => mouseMove(event);
+        }
+
+        function scaleMatrix(scaleVec) {
+            mat4.scale(modelMatrix, modelMatrix, scaleVec);
+        }
+
+        function translateMatrix(translateVec) {
+            mat4.translate(modelMatrix, modelMatrix, translateVec);
+        }
+
+        function rotateMatrix(rad) {
+            mat4.rotate(modelMatrix, modelMatrix, degToRad(rad), [0, 1, 1]);
+        }
+
+        function keydown(ev) {
+            //console.log(ev.keyCode, ev.key);
+            switch (ev.keyCode) {
+                case 38:  //arrow up
+                    translateMatrix([0.0, 0.1, 0.0]);
+                    break;
+                case 40:  //arrow down
+                    translateMatrix([0.0, -0.1, 0.0]);
+                    break;
+                case 37:  //arrow left
+                    translateMatrix([-0.1, 0.0, 0.0]);
+                    break;
+                case 39:  //arrow right
+                    translateMatrix([0.1, 0.0, 0.0]);
+                    break;
+                case 83: {  //s or s+shift
+                    if (ev.shiftKey) {
+                        scaleMatrix([1.05, 1.05, 1.05]);
+                    }
+                    else {
+                        scaleMatrix([0.95, 0.95, 0.95]);
+                    }
+                    break;
+                }
+            }
+            drawScene();
+        }
+
+        function mouseDown(event) {
+            isDragging = true;
+            lastMouseX = event.clientX;
+            lastMouseY = event.clientY;
+        }
+
+        function mouseMove(event) {
+            if (isDragging) {
+                let mouseX = event.clientX;
+                let mouseY = event.clientY;
+                let diffX = mouseX - lastMouseX;
+                rotateMatrix(diffX / 5);
+                lastMouseX = mouseX;
+                lastMouseY = mouseY;
+                drawScene();
+            }
+        }
+
+        function mouseUp(event) {
+            isDragging = false;
+        }
+
+        function BG(red, green, blue) {
+            gl.clearColor(red, green, blue, 1.0);
+            drawScene();
+        }
+
+        function geometry(type) {
+            drawingMode = type;
+            drawScene();
+        }
+
+
+        function redraw() {
+            mat4.identity(modelMatrix);
+            drawScene();
+        }
+
+        /**
+         * init the program
+         */
+        function init() {
+            const canvas = utils.getCanvas("webgl-canvas");
+            gl = utils.getWebGLContext(canvas);
+            // Initialize the shaders
+            shaderProgram = new ShaderProgram(gl, "vertex-shader", "fragment-shader");
+            // Attach the location of shader attributes to the shader program instance for future usages
+            shaderProgram.aVertexPosition = gl.getAttribLocation(shaderProgram.program, "aVertexPosition");
+            shaderProgram.aVertexColor = gl.getAttribLocation(shaderProgram.program, "aVertexColor");
+            shaderProgram.uModelMatrix = gl.getUniformLocation(shaderProgram.program, "uModelMatrix");
+            shaderProgram.uViewMatrix = gl.getUniformLocation(shaderProgram.program, "uViewMatrix");
+            shaderProgram.uProjMatrix = gl.getUniformLocation(shaderProgram.program, "uProjMatrix");
+            initBuffers();
+            mat4.identity(modelMatrix);
+            // Set the clear color as black
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            gl.enable(gl.DEPTH_TEST);
+            drawScene();
+            initControls(canvas);
+        }
+
+        // Call the init function once the document has loaded
+        window.onload = init;
+
+    </script>
+
+</head>
+
+<body>
+    <canvas id="webgl-canvas" width="600" height="600">
+
+    </canvas>
+
+    <h4> Geometry: </h4>
+    <button onclick="geometry('POINTS')"> POINTS</button>
+    <button onclick="geometry('LINES')"> LINEs</button>
+    <button onclick="geometry('TRIANGLES')"> TRIANGLES</button>
+
+
+    <p> Select your preferred background color:
+        <button onclick="BG(1,0,0)"> Red</button>
+        <button onclick="BG(0,1,0)"> Green</button>
+        <button onclick="BG(0,0,1)"> Blue</button>
+        <button onclick="BG(0.5,0.5,0.5)"> Grey</button>
+        <button onclick="BG(0,0,0)"> Black</button>
+        <button onclick="BG(1,1,1)"> White</button>
+    </p>
+
+    <h4>Transformation</h4>
+
+    <ul>
+        <li>Clicking on the left mouse button and move the coursor to rotate</li>
+        <li>Using arrow keys to translate</li>
+        <li>Using 's' to scale down, 'shift' + 's' to scale up</li>
+    </ul>
+
+    <h4>
+
+    </h4>
+    <button onclick="redraw()"> Go Back! </button>
+
+</body>
+
+</html>

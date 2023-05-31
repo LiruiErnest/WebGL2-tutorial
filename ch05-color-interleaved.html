@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSE 5542 WebGL Tutorial</title>
+
+    <!-- modules -->
+    <script type="text/javascript" src="libs/utils.js"></script>
+    <script type="text/javascript" src="libs/shader-utils.js"></script>
+
+    <!-- vertex Shader -->
+    <script id="vertex-shader" type="x-shader/x-vertex">
+        # version 300 es
+
+        in vec3 aVertexPosition;
+        in vec3 aVertexColor;
+        out vec4 vVertextColor;
+
+        void main(void) {
+            gl_Position = vec4(aVertexPosition, 1.0);
+            vVertextColor = vec4(aVertexColor, 1.0);
+        }
+    </script>
+
+    <!-- fragment Shader -->
+    <script id="fragment-shader" type="x-shader/x-fragment">
+        # version 300 es
+        precision mediump float;
+
+        in vec4 vVertextColor;
+        out vec4 fragColor;
+
+        void main(void) {
+            fragColor = vVertextColor;
+        }
+    </script>
+
+    <script type="text/javascript">
+
+        // Enforcing all JS to be executed in "strict mode"
+        "use strict";
+
+        // Global variable to store the webGL context
+        let gl, shaderProgram, squareVertexBuffer;
+
+        function initBuffers() {
+            let vertices = [];
+
+            // below is how you interleave positions and colors into a single array and then VBO 
+            vertices.push(-.5); vertices.push(-.5); vertices.push(0.0);  // v1 positions
+            vertices.push(1.0); vertices.push(0.0); vertices.push(0.0);  // v1 colors
+
+            vertices.push(.5); vertices.push(.5); vertices.push(0.0);   // v2 positions
+            vertices.push(0.0); vertices.push(0.0); vertices.push(1.0);  // v2 colors
+
+            vertices.push(-.5); vertices.push(.5); vertices.push(0.0);  // v3 positions
+            vertices.push(0.0); vertices.push(0.0); vertices.push(0.0);  // v3 colors
+
+            vertices.push(-.5); vertices.push(-.5); vertices.push(0.0);  // v4 positions
+            vertices.push(1.0); vertices.push(0.0); vertices.push(0.0);  // v4 colors
+
+            vertices.push(.5); vertices.push(-.5); vertices.push(0.0);  // v5 positions
+            vertices.push(0.0); vertices.push(1.0); vertices.push(0.0);  // v5 colors
+
+            vertices.push(.5); vertices.push(.5); vertices.push(0.0);  // v6 positions
+            vertices.push(0.0); vertices.push(0.0); vertices.push(1.0);  // v6 colors
+
+            squareVertexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+
+            squareVertexBuffer.itemSize = 3; //three floats (x,y,z) per vertex
+            squareVertexBuffer.numItems = 6; //six vertices (two triangles, three each)
+
+            // Clean
+            gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        }
+
+        /**
+         * The main drawing routine, but does notthing except clear the canvas with the clear color
+         */
+        function drawScene() {
+            // gl.canvas refers to the canvas element that is associated with the context
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexBuffer);
+
+            /**
+             * You can get the size of each item through the following codes:
+             * let dataArray = new Float32Array([0.0, 0.0, 0.0]);
+             * console.log(dataArray.BYTES_PER_ELEMENT);  //return 4
+             * i.e., The size of each float is 4
+             */
+            let stride = 6 * 4; // 4 bytes per float, 6 floats
+            let offset = 0;
+            gl.vertexAttribPointer(shaderProgram.aVertexPosition, squareVertexBuffer.itemSize, gl.FLOAT, false, stride, offset);
+            gl.enableVertexAttribArray(shaderProgram.aVertexPosition);
+            offset = 3 * 4;  // skip the positions, which has 3 floats * 4 bytes/float 
+            gl.vertexAttribPointer(shaderProgram.aVertexColor, squareVertexBuffer.itemSize, gl.FLOAT, false, stride, offset);
+            gl.enableVertexAttribArray(shaderProgram.aVertexColor);
+            gl.drawArrays(gl.TRIANGLES, 0, squareVertexBuffer.numItems); // draw two triangles that involve 6 vertices 
+            // Clean
+            gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        }
+
+        /**
+         * init the program
+         */
+        function init() {
+            // Here we update the code structure by moving the getCanvas() and the getWebGLContext() to the utils object.
+            const canvas = utils.getCanvas("webgl-canvas");
+            gl = utils.getWebGLContext(canvas);
+            // Initialize the shaders
+            shaderProgram = new ShaderProgram(gl, "vertex-shader", "fragment-shader");
+            // Attach the location of shader attributes to the shader program instance for future usages
+            shaderProgram.aVertexPosition = gl.getAttribLocation(shaderProgram.program, "aVertexPosition");
+            shaderProgram.aVertexColor = gl.getAttribLocation(shaderProgram.program, "aVertexColor");
+            initBuffers();
+            // Set the clear color as black
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            drawScene();
+        }
+
+        // Call the init function once the document has loaded
+        window.onload = init;
+
+    </script>
+
+</head>
+
+<body>
+    <canvas id="webgl-canvas" width="800" height="600">
+
+    </canvas>
+</body>
+
+</html>

@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSE 5542 WebGL Tutorial</title>
+
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        label {
+            cursor: pointer;
+        }
+    </style>
+
+
+    <!-- modules -->
+    <script type="text/javascript" src="libs/gl-matrix.js"></script>
+    <script type="text/javascript" src="libs/utils.js"></script>
+    <script type="text/javascript" src="libs/shader-utils.js"></script>
+
+    <script id="vertex-shader" type="x-shader/x-vertex">
+        # version 300 es
+        uniform mat4 uModelMatrix;
+        uniform mat4 uViewMatrix;
+        uniform mat4 uProjMatrix;
+        uniform mat4 uNormalMatrix; // transform the normal into eye space
+        uniform vec4 uLightPosition;
+
+        in vec3 aVertexPosition;
+        in vec3 aVertexNormal;
+        in vec2 aVertexTextureCoords;
+
+        out vec4 vVertexPosition;
+        out vec4 vLightPosition;
+        out vec3 vNormal;
+        out vec2 vTextureCoords;
+
+        void main(void) {
+
+            vVertexPosition = uViewMatrix * uModelMatrix * vec4(aVertexPosition, 1.0); //vertex position in view space
+            vLightPosition = uViewMatrix * uLightPosition; // transform the light position from world-space to view space
+
+            // Normal vector
+            vNormal = vec3(uNormalMatrix * vec4(aVertexNormal, 1.0));
+
+            gl_PointSize = 10.0;
+            gl_Position = uProjMatrix * vVertexPosition;
+
+            vTextureCoords = aVertexTextureCoords;
+        }
+    </script>
+
+
+    <!-- fragment Shader -->
+    <script id="fragment-shader" type="x-shader/x-fragment">
+        # version 300 es
+        precision mediump float;
+
+        // Texture
+        uniform sampler2D uSampler;
+
+        // Lights
+        uniform vec4 uLightAmbient;
+        uniform vec4 uLightDiffuse;
+        uniform vec4 uLightSpecular;
+
+        // Materials
+        uniform vec4 uMaterialAmbient;
+        uniform vec4 uMaterialDiffuse;
+        uniform vec4 uMaterialSpecular;
+        uniform float uMaterialShininess;
+
+        uniform int uTextureOption; //determine which we will use: 0: no texture, 1: 2D texture
+
+        in vec4 vVertexPosition;
+        in vec4 vLightPosition;
+        in vec3 vNormal;
+        in vec2 vTextureCoords;
+
+        out vec4 fragColor;
+
+        void main(void) {
+
+            // Light direction
+            vec3 L = normalize(vVertexPosition.xyz - vLightPosition.xyz);
+            // Note that we need to normalize the vNormal in the fragment shader
+            // If we normalize the vNormal in the vertex shader, these normalized normals will not remain normalized
+            // when they are interpolated  across the surface of the polygon during rasterization.
+            vec3 N = normalize(vNormal);
+
+            // Ambient
+            vec4 Ia = uLightAmbient * uMaterialAmbient;
+            // Diffuse
+            float lambertTerm = max(dot(N, -L), 0.0);
+            vec4 Id = uLightDiffuse * uMaterialDiffuse * lambertTerm;
+             
+            // Specular
+            // the camera / viewer is at (0,0,0) in view space, so the view direction is (0,0,0) - vVertexPosition
+            vec3 V = normalize(-vec3(vVertexPosition.xyz));
+            vec3 R = reflect(L, N); //reflection
+            float specular = pow(max(dot(R, V), 0.0), uMaterialShininess);
+            vec4 Is = uLightSpecular * uMaterialSpecular * specular;
+
+            
+            if(uTextureOption == 0){
+                fragColor = vec4(vec3(Ia + Id + Is), 1.0);
+            }
+            else{
+                fragColor = texture(uSampler, vTextureCoords);
+            }
+
+            
+        }
+    </script>
+
+    <script type="text/javascript">
+
+        /**
+         * This example illustrates how to implement Phong shading in the view space
+         * Phong illumilation model
+         */
+
+        // Enforcing all JS to be executed in "strict mode"
+        "use strict";
+
+        // Global variable to store the webGL context
+        let gl,
+            shaderProgram,
+            teapotVertexPosBuffer,
+            teapotVertexNormalBuffer,
+            teapotVertexTexCoordBuffer,
+            teapotIndexBuffer,
+            teapotVAO,
+            drawingMode = 'TRIANGLES';
+
+        let teapotData, texture, textureImages = [];;
+
+        let lightPosition = [5.0, 8.0, 8.0, 0.0],
+            lightAmbient = [1.0, 0.5, 0.31, 1],
+            lightDiffuse = [1.0, 0.5, 0.31, 1.0],
+            lightSpecular = [1, 1, 1, 1],
+            materialAmbient = [0.2, 0.2, 0.2, 1.0],
+            materialDiffuse = [0.5, 0.5, 0.5, 1.0],
+            materialSpecular = [1.0, 1.0, 1.0, 1.0],
+            materialShininess = 32;
+
+
+        let modelMatrix = mat4.create();
+        let viewMatrix = mat4.create();
+        let projMatrix = mat4.create();
+        let modelViewMatrix = mat4.create();
+        let normalMatrix = mat4.create();
+        let zAngle = 0.0;
+        let lastMouseX = 0, lastMouseY = 0;
+
+        /**
+         * Helper functions
+         */
+
+        function degToRad(degrees) {
+            return degrees * Math.PI / 180;
+        }
+
+        function scaleMatrix(scaleVec) {
+            mat4.scale(modelMatrix, modelMatrix, scaleVec);
+        }
+
+        function translateMatrix(translateVec) {
+            mat4.translate(modelMatrix, modelMatrix, translateVec);
+        }
+
+        function rotateMatrix(rad) {
+            mat4.rotate(modelMatrix, modelMatrix, degToRad(rad), [0, 1, 1]);
+        }
+
+        function changeBackground(red, green, blue) {
+            gl.clearColor(red, green, blue, 1.0);
+            drawScene();
+        }
+
+        function switchTexture(option){
+            gl.uniform1i(shaderProgram.uTextureOption, option);
+            drawScene();
+        }
+
+        function geometry(type) {
+            drawingMode = type;
+            drawScene();
+        }
+
+        function setMatrixUniforms(modelMatrix, viewMatrix, projMatrix) {
+            gl.uniformMatrix4fv(shaderProgram.uModelMatrix, false, modelMatrix);
+            gl.uniformMatrix4fv(shaderProgram.uViewMatrix, false, viewMatrix);
+            gl.uniformMatrix4fv(shaderProgram.uProjMatrix, false, projMatrix);
+        }
+
+        /**
+         * controls of the program
+         */
+        let isDragging = false;
+        function initControls(canvas) {
+            function keydown(ev) {
+                //console.log(ev.keyCode, ev.key);
+                switch (ev.keyCode) {
+                    case 38:  //arrow up
+                        translateMatrix([0.0, 0.1, 0.0]);
+                        break;
+                    case 40:  //arrow down
+                        translateMatrix([0.0, -0.1, 0.0]);
+                        break;
+                    case 37:  //arrow left
+                        translateMatrix([-0.1, 0.0, 0.0]);
+                        break;
+                    case 39:  //arrow right
+                        translateMatrix([0.1, 0.0, 0.0]);
+                        break;
+                    case 83: {  //s or s+shift
+                        if (ev.shiftKey) {
+                            scaleMatrix([1.05, 1.05, 1.05]);
+                        }
+                        else {
+                            scaleMatrix([0.95, 0.95, 0.95]);
+                        }
+                        break;
+                    }
+                }
+                drawScene();
+            }
+
+            function mouseDown(event) {
+                isDragging = true;
+                lastMouseX = event.clientX;
+                lastMouseY = event.clientY;
+            }
+
+            function mouseMove(event) {
+                if (isDragging) {
+                    let mouseX = event.clientX;
+                    let mouseY = event.clientY;
+                    let diffX = mouseX - lastMouseX;
+                    rotateMatrix(diffX / 5);
+                    lastMouseX = mouseX;
+                    lastMouseY = mouseY;
+                    drawScene();
+                }
+            }
+
+            function mouseUp(event) {
+                isDragging = false;
+            }
+
+            document.onkeydown = function (event) { keydown(event); };
+            canvas.onmousedown = event => mouseDown(event);
+            canvas.onmouseup = event => mouseUp(event);
+            canvas.onmouseout = event => mouseUp(event);
+            canvas.onmousemove = event => mouseMove(event);
+        }
+
+        function redraw() {
+            mat4.identity(modelMatrix);
+            mat4.scale(modelMatrix, modelMatrix, [0.05, 0.05, 0.05]);
+            drawScene();
+        }
+
+        function initProgram() {
+            const canvas = utils.getCanvas("webgl-canvas");
+            gl = utils.getWebGLContext(canvas);
+            // Initialize the shaders
+            shaderProgram = new ShaderProgram(gl, "vertex-shader", "fragment-shader");
+            // Attach the location of shader attributes to the shader program instance for future usages
+            shaderProgram.setAttributeLocation(["aVertexPosition", "aVertexNormal", "aVertexTextureCoords"]);
+            shaderProgram.setUniformLocations(["uModelMatrix", "uViewMatrix", "uProjMatrix", "uNormalMatrix",
+                "uTextureOption",, "uSampler",
+                "uLightAmbient", "uMaterialAmbient",
+                "uLightDiffuse", "uMaterialDiffuse",
+                "uLightSpecular", "uMaterialSpecular", "uMaterialShininess",
+                "uLightPosition"]);
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            gl.enable(gl.DEPTH_TEST);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+            initControls(canvas);
+        }
+
+        function initBuffers() {
+
+            // Create and bind the cube VAO
+            teapotVAO = gl.createVertexArray();
+            gl.bindVertexArray(teapotVAO);
+
+            // Create and bind the VBO; Bind the vertex position and color data
+            teapotVertexPosBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexPosBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertices), gl.STATIC_DRAW);
+            teapotVertexPosBuffer.itemSize = 3;
+            teapotVertexPosBuffer.numItems = teapotData.vertices.length / 3;
+            gl.vertexAttribPointer(shaderProgram.aVertexPosition, teapotVertexPosBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shaderProgram.aVertexPosition);
+
+            teapotVertexTexCoordBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexTexCoordBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.texCoords), gl.STATIC_DRAW);
+            teapotVertexTexCoordBuffer.itemSize = 2;
+            teapotVertexTexCoordBuffer.numItems = teapotData.texCoords.length / 2;
+            gl.vertexAttribPointer(shaderProgram.aVertexTextureCoords, teapotVertexTexCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shaderProgram.aVertexTextureCoords);
+            // Tell WebGL for each sampler to which texture unit it belongs to (only has to be done once)
+            // The default texture unit for a texture is 0
+            gl.uniform1i(shaderProgram.uSampler, 0);
+
+            teapotVertexNormalBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexNormalBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.normals), gl.STATIC_DRAW);
+            teapotVertexNormalBuffer.itemSize = 3;
+            teapotVertexNormalBuffer.numItems = teapotData.normals.length / 3;
+            gl.vertexAttribPointer(shaderProgram.aVertexNormal, teapotVertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(shaderProgram.aVertexNormal);
+
+            // Setting up the cube IBO
+            teapotIndexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, teapotIndexBuffer);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(teapotData.indices), gl.STATIC_DRAW);
+            teapotIndexBuffer.itemsize = 1;
+            teapotIndexBuffer.numItems = teapotData.indices.length;
+
+            // Clean
+            gl.bindVertexArray(null);
+            gl.bindBuffer(gl.ARRAY_BUFFER, null);
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+        }
+
+        function initTextures() {
+            texture = gl.createTexture();
+            texture.image = textureImages[0];
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.bindTexture(gl.TEXTURE_2D, null);
+            gl.uniform1i(shaderProgram.uTextureOption, 1); //by default, enable the texture
+        }
+
+        function initLights() {
+            gl.uniform4fv(shaderProgram.uLightPosition, lightPosition);
+            gl.uniform4fv(shaderProgram.uLightAmbient, lightAmbient);
+            gl.uniform4fv(shaderProgram.uMaterialAmbient, materialAmbient);
+            gl.uniform4fv(shaderProgram.uLightDiffuse, lightDiffuse);
+            gl.uniform4fv(shaderProgram.uMaterialDiffuse, materialDiffuse);
+            gl.uniform4fv(shaderProgram.uLightSpecular, lightSpecular);
+            gl.uniform4fv(shaderProgram.uMaterialSpecular, materialSpecular);
+            gl.uniform1f(shaderProgram.uMaterialShininess, materialShininess);
+        }
+
+        function initTransformation() {
+            mat4.identity(modelMatrix);
+            mat4.scale(modelMatrix, modelMatrix, [0.05, 0.05, 0.05]);
+        }
+
+        function drawScene() {
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+            //perspective(out, fovy, aspect, near, far)
+            mat4.perspective(projMatrix, 45 * (Math.PI / 180), gl.canvas.width / gl.canvas.height, 0.1, 1000);
+            //lookAt(out, eye, center, up)
+            mat4.lookAt(viewMatrix, [0, 0, 2], [0, 0, 0], [0, 1, 0]);
+            setMatrixUniforms(modelMatrix, viewMatrix, projMatrix);
+
+            // The normal matrix can be calculated as the transpose of the inverse of the model matrix.
+            // Check http://www.lighthouse3d.com/tutorials/glsl-12-tutorial/the-normal-matrix/ for more details
+            mat4.multiply(modelViewMatrix, viewMatrix, modelMatrix);
+            mat4.copy(normalMatrix, modelViewMatrix);
+            mat4.invert(normalMatrix, normalMatrix);
+            mat4.transpose(normalMatrix, normalMatrix);
+            gl.uniformMatrix4fv(shaderProgram.uNormalMatrix, false, normalMatrix);
+
+            gl.bindVertexArray(teapotVAO);
+            // Activate texture
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            switch (drawingMode) {
+                case 'POINTS': {
+                    gl.drawArrays(gl.POINTS, 0, teapotVertexPosBuffer.numItems);
+                    break;
+                }
+                case 'LINES': {
+                    gl.drawArrays(gl.LINE_STRIP, 0, teapotVertexPosBuffer.numItems);
+                    break;
+                }
+                case 'TRIANGLES': {
+                    gl.drawElements(gl.TRIANGLES, teapotIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+                    break;
+                }
+            }
+            gl.bindVertexArray(null);
+        }
+
+        /**
+         * init the program
+         */
+        function init() {
+            initProgram();
+            initBuffers();
+            initTextures();
+            initLights();
+            initTransformation();
+            drawScene();
+        }
+
+
+        function loadJSON(url) {
+            return new Promise((resolve, reject) => {
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) {
+                            reject(`HTTP error! status: ${response.status}`);
+                        } else {
+                            return response.json();
+                        }
+                    })
+                    .then(data => resolve(data))
+                    .catch(error => reject(error));
+            });
+        }
+
+        /**
+         * Loading texture images synchronously
+         */
+         function loadImg(src) {
+            return new Promise((resolve, reject) => {
+                let img = new Image();
+                img.src = src;
+
+                img.onload = function () {
+                    resolve(img);
+                };
+                img.onerror = function (img) {
+                    reject('the image cannot be loaded');
+                };
+            });
+        }
+
+        /**
+         * In WebGL, you cannot load texture images synchronously because JavaScript
+         * is inherently asynchronous when it comes to I/O operations such as fetching resources from a server. 
+         * Here, we use the Promise object to load all texture related assets (i.e., images and models) 
+         * before the rendering process.
+         * You can find more details about the JS Promise object at:
+         * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise
+         * Note that you can also choose to load the texture images asynchronously if you prefer the other way
+         */
+        function loadAssets() {
+            const modelAssetsSrc = ['public/assets/teapot.json'];
+            const textureAssetsSrc = ['public/assets/brick.png'];
+            // Fulfills when all of the model assets fulfill
+            Promise.all(modelAssetsSrc.map(src => loadJSON(src))).then(models => {
+                teapotData = {
+                    vertices: models[0].vertexPositions,
+                    normals: models[0].vertexNormals,
+                    indices: models[0].indices,
+                    texCoords: models[0].vertexTextureCoords
+                };
+                // Fulfills when all of the texture assets fulfill
+                Promise.all(textureAssetsSrc.map(src => loadImg(src))).then(imgs => {
+                    textureImages = imgs;
+                    init();
+                })
+            })
+        }
+
+    
+        // Call the init function once the document has loaded
+        window.onload = loadAssets;
+
+    </script>
+
+</head>
+
+<body>
+    <canvas id="webgl-canvas" width="800" height="600">
+
+    </canvas>
+
+    <p> <b>Texture</b>:
+        <button onclick="switchTexture(0)"> NO </button>
+        <button onclick="switchTexture(1)"> YES </button>
+    </p>
+
+    <p> <b>Geometry</b>:
+        <button onclick="geometry('POINTS')"> POINTS</button>
+        <button onclick="geometry('LINES')"> LINEs</button>
+        <button onclick="geometry('TRIANGLES')"> TRIANGLES</button>
+    </p>
+
+    <p> <b>Select your preferred background color:</b>
+        <button onclick="changeBackground(1,0,0)"> Red</button>
+        <button onclick="changeBackground(0,1,0)"> Green</button>
+        <button onclick="changeBackground(0,0,1)"> Blue</button>
+        <button onclick="changeBackground(0.5,0.5,0.5)"> Grey</button>
+        <button onclick="changeBackground(0,0,0)"> Black</button>
+        <button onclick="changeBackground(1,1,1)"> White</button>
+    </p>
+
+    <h4>Transformation</h4>
+
+    <ul>
+        <li>Clicking on the left mouse button and move the coursor to rotate</li>
+        <li>Using arrow keys to translate</li>
+        <li>Using 's' to scale down, 'shift' + 's' to scale up</li>
+    </ul>
+
+    <h4>
+
+    </h4>
+    <button onclick="redraw()"> Go Back! </button>
+
+</body>
+
+</html>
