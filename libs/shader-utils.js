@@ -14,17 +14,18 @@ class ShaderProgram {
      */
     constructor(gl, vertexShaderID, fragmentShaderID) {
         this.gl = gl;
-
-        this.program = gl.createProgram();
-        gl.attachShader(this.program, this.getShader(gl, vertexShaderID));
-        gl.attachShader(this.program, this.getShader(gl, fragmentShaderID));
-        gl.linkProgram(this.program);
+        this.program = gl.createProgram();  // create a shader program
+        let vertexShader = this.getShader(gl, vertexShaderID); // create and compile a vertex shader object 
+        let fragmentShader = this.getShader(gl, fragmentShaderID); // create and compile a fragment shader object 
+        gl.attachShader(this.program, vertexShader); // attach the vertex shader to the shader program
+        gl.attachShader(this.program, fragmentShader); // attach the fragment shader to the shader program
+        gl.linkProgram(this.program); // link the vertex and fragment shaders 
 
         if (!this.gl.getProgramParameter(this.program, this.gl.LINK_STATUS)) {
             return console.error("Could not initialize shaders.");
         }
 
-        this.gl.useProgram(this.program);
+        this.gl.useProgram(this.program); //use the shader program
     }
 
     /**
@@ -79,7 +80,6 @@ class ShaderProgram {
         } else {
             return null;
         }
-
         gl.shaderSource(shader, shaderString);
         gl.compileShader(shader);
 
@@ -87,7 +87,6 @@ class ShaderProgram {
             alert(gl.getShaderInfoLog(shader));
             return null;
         }
-
         return shader;
     }
 }
